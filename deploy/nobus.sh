@@ -55,7 +55,7 @@ EOF
 fi
 
 # 2. Code
-tar --exclude=node_modules --exclude=web/dist --exclude=.git --exclude=.env --exclude=backups -czf - . | ssh "$HOST" "cd kobolt && tar xzf -"
+tar --exclude=node_modules --exclude=web/dist --exclude=.git --exclude=.env --exclude=backups --exclude="*.pem" --exclude="*.key" -czf - . | ssh "$HOST" "cd kobolt && tar xzf -"
 
 # 3. Docker + start
 ssh "$HOST" 'set -e

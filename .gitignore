@@ -4,3 +4,5 @@ dist
 *.log
 backups/
 zapp.json
+*.pem
+*.key
