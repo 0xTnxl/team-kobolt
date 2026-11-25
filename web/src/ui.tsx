@@ -33,7 +33,7 @@ export function Top({ title, back, children }: { title?: string; back?: string |
 export function Brand() {
   return (
     <div class="brand">
-      <img src="/icon.svg" alt="" /> Kobolt
+      <img class="wordmark" src="/kobolt.svg" alt="Kobolt" width="388" height="84" />
     </div>
   );
 }

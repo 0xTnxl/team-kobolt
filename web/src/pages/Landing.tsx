@@ -103,7 +103,7 @@ export function Landing() {
       <header class="lp-nav-wrap">
         <nav class="lp-nav" aria-label="Main">
           <a class="brand" href="#top">
-            <img src="/icon.svg" alt="" /> Kobolt
+            <img class="wordmark" src="/kobolt.svg" alt="Kobolt" width="388" height="84" />
           </a>
           <div class="lp-links">
             <a href="#compare">Why Kobolt</a>
@@ -208,7 +208,7 @@ export function Landing() {
           <div class="lp-foot-grid">
             <div>
               <div class="brand">
-                <img src="/icon.svg" alt="" /> Kobolt
+                <img class="wordmark" src="/kobolt.svg" alt="Kobolt" width="388" height="84" />
               </div>
               <p class="small lp-foot-muted">
                 Businesses in Ogun pay creators to post about them, at home or abroad. Kobolt checks the posts and pays.

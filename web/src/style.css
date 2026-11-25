@@ -64,7 +64,7 @@ a { color: var(--indigo-2); text-decoration: none; }
 .top .title { font-weight: 600; font-size: 17px; letter-spacing: -0.02em; }
 
 .brand { display: flex; align-items: center; gap: 9px; font-weight: 650; font-size: 17px; letter-spacing: -0.02em; }
-.brand img { width: 26px; height: 26px; border-radius: 7px; box-shadow: 0 0 0 0.5px var(--line-strong); }
+.brand img.wordmark { width: auto; height: 20px; display: block; }
 
 .serif { font-family: var(--display); }
 .mono { font-family: var(--mono); letter-spacing: 0; }
@@ -558,7 +558,7 @@ html:has(.lp) { scroll-behavior: smooth; scroll-padding-top: 88px; }
   -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
 }
 .lp-nav .brand { color: var(--ink); font-size: 16px; }
-.lp-nav .brand img { width: 24px; height: 24px; }
+.lp-nav .brand img.wordmark { height: 20px; }
 .lp-links { display: none; flex: 1; justify-content: center; gap: 4px; }
 .lp-links a { color: var(--ink2); font-size: 14.5px; font-weight: 500; padding: 7px 12px; border-radius: 10px; transition: background 0.15s, color 0.15s; }
 .lp-links a:hover { background: var(--sunk); color: var(--ink); }
@@ -622,6 +622,7 @@ html:has(.lp) { scroll-behavior: smooth; scroll-padding-top: 88px; }
 
 .lp-foot { background: var(--ink); color: #fff; padding: 48px 0 calc(28px + env(safe-area-inset-bottom)); }
 .lp-foot .brand { color: #fff; }
+.lp-foot .brand img.wordmark { filter: brightness(0) invert(1); }
 .lp-foot-grid { display: grid; gap: 28px; }
 .lp-foot-muted { color: rgba(255, 255, 255, 0.6); max-width: 320px; margin: 12px 0 0; }
 .lp-foot-head { font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, 0.5); margin-bottom: 10px; }
