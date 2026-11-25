@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { api, go, zend, zendMessage, me } from "../api";
-import { Brand, Chip, Avatar, ErrorBox, when } from "../ui";
+import { Brand, Chip, ErrorBox, when } from "../ui";
 
 interface Summary {
   id: string;
@@ -60,14 +60,14 @@ export function Home() {
       </h1>
       <div class="tabs">
         <button class={tab === "open" ? "on" : ""} onClick={() => setTab("open")}>
-          Open · {open.length}
+          Open{open.length ? ` ${open.length}` : ""}
         </button>
         <button class={tab === "done" ? "on" : ""} onClick={() => setTab("done")}>
-          Done · {done.length}
+          Done{done.length ? ` ${done.length}` : ""}
         </button>
       </div>
       <ErrorBox text={err} />
-      {deals === null && <p class="muted">Loading your deals…</p>}
+      {deals === null && <div class="loading" style={{ minHeight: 240 }}>Loading your deals</div>}
       {deals && !list.length && (
         <div class="sunk">
           <div style={{ fontWeight: 600, color: "var(--indigo)" }}>{tab === "open" ? "No open deals yet" : "Nothing finished yet"}</div>
@@ -76,13 +76,13 @@ export function Home() {
           </div>
         </div>
       )}
-      {list.map((d) => (
+      {list.length > 0 && <div class="list">{list.map((d) => (
         <div class="deal-row" onClick={() => go(`/d/${d.id}`)}>
-          <Avatar name={d.otherName} blue={d.role === "creator"} />
+          <div class="frame adire"><span>{(d.otherName ?? "?").trim().charAt(0).toUpperCase()}</span></div>
           <div class="grow">
             <div style={{ fontWeight: 600 }}>{d.role === "brand" ? d.otherName : d.brandName}</div>
             <div class="small muted">
-              {d.postCount} {d.appName} · {d.title}
+              {d.title} · {d.postCount} {d.appName}{d.postCount > 1 && d.appName === "TikTok" ? "s" : ""}
             </div>
             {d.state === "accepted" && <div class="tiny faint">Due {when(d.postsDueAt, d.otherTimeZone)}</div>}
           </div>
@@ -91,7 +91,7 @@ export function Home() {
             <Chip state={d.state} label={d.role === "creator" && d.state === "offered" ? "Waiting for you" : d.role === "brand" && d.state === "needs_brand" ? "Needs you" : undefined} />
           </div>
         </div>
-      ))}
+      ))}</div>}
       <div class="dock">
         <div>
           <button class="btn" disabled={busy} onClick={start}>

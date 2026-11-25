@@ -1,10 +1,10 @@
 import { useState } from "preact/hooks";
 import { api, zendMessage } from "../api";
-import { CheckLine, Running, ErrorBox, when, type Check } from "../ui";
+import { CheckLine, Running, ErrorBox, Icon, Stamp, MarkedCaption, when, type Check } from "../ui";
 import type { View, PostView } from "./Deal";
 
 const STATUS_CHIP: Record<string, [string, string]> = {
-  checking: ["Checking", "wait"],
+  checking: ["Reading", "wait"],
   passed: ["Checked out", "pass"],
   failed: ["1 to fix", "fail"],
   needs_brand: ["Brand checks this", "wait"],
@@ -26,21 +26,32 @@ export function PostCard({ p, v, onDecide }: { p: PostView; v: View; onDecide?: 
   const ai = p.checks.filter((c) => c.layer === "ai");
   const order = (c: Check) => (c.status === "fail" ? 0 : c.status === "pass" ? 2 : 1);
   const anyFail = fails > 0;
+  const reading = p.status === "checking";
+  const stamped = p.status === "passed" || p.status === "brand_ok";
+  const low = (p.caption ?? "").toLowerCase();
+  const inCaption = (c: Check) => !!(c.quote && low.includes(c.quote.trim().replace(/^[“"]|[”"]$/g, "").toLowerCase()));
   return (
-    <div class="card">
+    <div class={`card post ${p.status}`}>
       <div class="post-head">
-        <div class="thumb">▶</div>
+        <div class="thumb adire"><Icon name="play" /></div>
         <div class="grow">
-          <div style={{ fontWeight: 600 }}>Post {p.slot}</div>
-          <a class="tiny mono" href={p.url} target="_blank" rel="noreferrer">{shortUrl(p.url)}</a>
+          <div style={{ fontWeight: 600 }}>Post {p.slot}{p.author ? <span class="muted" style={{ fontWeight: 400 }}> · @{p.author}</span> : null}</div>
+          <a class="tiny" href={p.url} target="_blank" rel="noreferrer">{shortUrl(p.url)}</a>
         </div>
-        <span class={`chip ${cls}`}>{chipText}</span>
+        {!stamped && <span class={`chip ${cls}`}>{chipText}</span>}
       </div>
-      {rules.length > 0 && <div class="section-label" style={{ marginTop: 8 }}>{p.source === "typed" ? "Checked by the rules" : `Read from ${v.deal.appName}`}</div>}
-      {rules.sort((a, b) => order(a) - order(b)).map((c) => <CheckLine c={c} />)}
-      {(ai.length > 0 || p.status === "checking") && <div class="section-label">Read by Kobolt's AI</div>}
-      {ai.sort((a, b) => order(a) - order(b)).map((c) => <CheckLine c={c} />)}
-      {p.status === "checking" && !ai.length && (rules.length ? <Running label="Reading the caption" /> : <Running label={`Reading the post from ${v.deal.appName}`} />)}
+      <div class="caption-wrap">
+        {p.caption ? (
+          <MarkedCaption caption={p.caption} checks={p.checks} reading={reading} />
+        ) : reading ? (
+          <div class="caption-skel" aria-label={`Reading the post from ${v.deal.appName}`}><i /><i /><i /></div>
+        ) : null}
+        {stamped && <Stamp by={p.status === "brand_ok" ? v.deal.brandName : undefined} />}
+      </div>
+      {!reading && (rules.length > 0 || ai.length > 0) && <div class="section-label" style={{ marginTop: 6 }}>Kobolt's notes</div>}
+      {!reading && [...rules, ...ai].sort((a, b) => order(a) - order(b)).map((c) => <CheckLine c={c} inline={inCaption(c)} />)}
+      {reading && rules.sort((a, b) => order(a) - order(b)).map((c) => <CheckLine c={c} inline={inCaption(c)} />)}
+      {reading && (rules.length ? <Running label="Kobolt is reading the caption" /> : <Running label={`Kobolt is opening the post on ${v.deal.appName}`} />)}
       {p.status === "needs_brand" && v.role === "creator" && (
         <div class="note-box" style={{ marginTop: 10 }}>
           {v.deal.brandName} is checking this one.{" "}
@@ -49,7 +60,6 @@ export function PostCard({ p, v, onDecide }: { p: PostView; v: View; onDecide?: 
       )}
       {p.status === "needs_brand" && v.role === "brand" && onDecide && (
         <div style={{ marginTop: 12 }}>
-          {p.caption && <div class="quote unclear">“{p.caption.slice(0, 400)}”</div>}
           <div class="small muted" style={{ margin: "8px 0" }}>
             Kobolt couldn't be sure about this post.{" "}
             {p.brandDecideBy && (anyFail ? `If you don't decide by ${when(p.brandDecideBy)}, it isn't paid.` : `If you don't decide by ${when(p.brandDecideBy)}, ${v.creator.name} gets paid for this post.`)}

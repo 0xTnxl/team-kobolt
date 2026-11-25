@@ -59,7 +59,7 @@ function App() {
       () => setReady(publicPage ? "ok" : "fail"),
     );
   }, []);
-  if (ready === "wait") return <div class="loading">Kobolt</div>;
+  if (ready === "wait") return <div class="loading" aria-label="Loading" />;
   if (ready === "outside")
     return (
       <div class="page center" style={{ paddingTop: 120 }}>

@@ -2,12 +2,27 @@ import type { ComponentChildren } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { go, myTz } from "./api";
 
+const ICONS = {
+  back: <path d="M15 5.5 8.5 12l6.5 6.5" />,
+  check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  alert: <path d="M12 6.5v7M12 17.5v.01" />,
+  question: <path d="M9.3 9.2a2.8 2.8 0 1 1 3.9 2.6c-.7.3-1.2.9-1.2 1.7v.4M12 17.5v.01" />,
+  play: <path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none" />,
+};
+export function Icon({ name, size }: { name: keyof typeof ICONS; size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" stroke-width={2.6} stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      {ICONS[name]}
+    </svg>
+  );
+}
+
 export function Top({ title, back, children }: { title?: string; back?: string | true; children?: ComponentChildren }) {
   return (
     <div class="top">
       {back && (
         <button class="back" aria-label="Back" onClick={() => (back === true ? history.back() : go(back))}>
-          ←
+          <Icon name="back" />
         </button>
       )}
       {title ? <div class="title">{title}</div> : children}
@@ -74,11 +89,11 @@ export function countdown(to: string | Date, now: number) {
 
 export const STATE_CHIP: Record<string, [string, string]> = {
   new: ["Not sent yet", "grey"],
-  offered: ["Held · waiting", "held"],
-  accepted: ["Accepted", "held"],
-  checking: ["Checking", "wait"],
-  needs_brand: ["Needs the brand", "wait"],
-  approved: ["Approved", "pass"],
+  offered: ["Waiting to accept", "held"],
+  accepted: ["Posting", "held"],
+  checking: ["Kobolt is reading", "wait"],
+  needs_brand: ["Brand decides", "wait"],
+  approved: ["Paying soon", "pass"],
   paid: ["Paid", "pass"],
   part_paid: ["Part paid", "pass"],
   returned: ["Returned", "grey"],
@@ -128,9 +143,9 @@ export interface Check {
   fix: string | null;
 }
 
-export function CheckLine({ c }: { c: Check }) {
-  const mark = c.status === "pass" ? "✓" : c.status === "fail" ? "!" : "?";
-  const showQuote = c.quote && (c.status !== "pass" || c.layer === "ai");
+export function CheckLine({ c, inline }: { c: Check; inline?: boolean }) {
+  const mark = <Icon name={c.status === "pass" ? "check" : c.status === "fail" ? "alert" : "question"} />;
+  const showQuote = !inline && c.quote && (c.status !== "pass" || c.layer === "ai");
   return (
     <div class="check">
       <div class={`ic ${c.status}`}>{mark}</div>
@@ -158,4 +173,60 @@ export function Running({ label }: { label: string }) {
 
 export function ErrorBox({ text }: { text: string | null }) {
   return text ? <div class="err">{text}</div> : null;
+}
+
+/** Rubber stamp. Pass `by` for a brand's own approval; default is Kobolt's. */
+export function Stamp({ by, small }: { by?: string; small?: boolean }) {
+  return (
+    <span class={`stamp ${by ? "brand" : ""} ${small ? "small" : ""}`} aria-label={by ? `Approved by ${by}` : "Checked by Kobolt"}>
+      <span class="stamp-in">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="3" /><path d="M12 2.5v4M12 17.5v4" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
+        <span>{by ? <>Approved<small>by {by}</small></> : <>Checked<small>by Kobolt</small></>}</span>
+      </span>
+    </span>
+  );
+}
+
+type Mark = { start: number; end: number; status: Check["status"]; id: string };
+
+/** Where each check's quote sits in the caption. Overlaps keep the earlier, worse mark. */
+function findMarks(caption: string, checks: Check[]): Mark[] {
+  const low = caption.toLowerCase();
+  const rank = (s: string) => (s === "fail" ? 0 : s === "pass" ? 2 : 1);
+  const found: Mark[] = [];
+  for (const c of [...checks].sort((a, b) => rank(a.status) - rank(b.status))) {
+    const q = c.quote?.trim().replace(/^[“"]|[”"]$/g, "");
+    if (!q || q.length < 2) continue;
+    const at = low.indexOf(q.toLowerCase());
+    if (at < 0) continue;
+    const m = { start: at, end: at + q.length, status: c.status, id: c.id };
+    if (!found.some((f) => m.start < f.end && f.start < m.end)) found.push(m);
+  }
+  return found.sort((a, b) => a.start - b.start);
+}
+
+/**
+ * The creator's caption, as Kobolt read it. While checking, the words light up one by one; once
+ * the checks are in, each quoted phrase is marked where it was found.
+ */
+export function MarkedCaption({ caption, checks, reading }: { caption: string; checks: Check[]; reading: boolean }) {
+  if (reading) {
+    const words = caption.split(/(\s+)/);
+    let n = 0;
+    return (
+      <p class="caption reading">
+        {words.map((w) => (/^\s+$/.test(w) ? w : <span style={{ animationDelay: `${Math.min(n++, 60) * 55}ms` }}>{w}</span>))}
+      </p>
+    );
+  }
+  const marks = findMarks(caption, checks);
+  const out: ComponentChildren[] = [];
+  let at = 0;
+  marks.forEach((m, i) => {
+    if (m.start > at) out.push(caption.slice(at, m.start));
+    out.push(<mark class={`m-${m.status}`} style={{ animationDelay: `${120 + i * 160}ms` }}>{caption.slice(m.start, m.end)}</mark>);
+    at = m.end;
+  });
+  out.push(caption.slice(at));
+  return <p class="caption">{out}</p>;
 }

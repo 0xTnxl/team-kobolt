@@ -59,6 +59,11 @@ tar --exclude=node_modules --exclude=web/dist --exclude=.git --exclude=.env --ex
 
 # 3. Docker + start
 ssh "$HOST" 'set -e
+  # Small instances: 2 GB of swap so the one-time image build never runs out of memory.
+  if [ ! -f /swapfile ]; then
+    sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile >/dev/null && sudo swapon /swapfile
+    echo "/swapfile none swap sw 0 0" | sudo tee -a /etc/fstab >/dev/null
+  fi
   command -v docker >/dev/null || (curl -fsSL https://get.docker.com | sudo sh)
   cd kobolt
   sudo docker compose -f deploy/compose.yml --env-file .env --profile bot up -d --build

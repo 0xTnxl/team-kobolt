@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { api, go, zend, zendMessage, me, ApiFail } from "../api";
-import { Top, Chip, Sheet, ErrorBox, when, clock, useNow, countdown, toast, type Check } from "../ui";
+import { Top, Chip, Sheet, ErrorBox, Stamp, when, clock, useNow, countdown, toast, type Check } from "../ui";
 import { PostCard, ShareForm, Precheck } from "./Checks";
 
 export interface PostView {
@@ -49,13 +49,15 @@ function Hero({ v }: { v: View }) {
   const about = aboutPart(v.amounts.total);
   const otherCity = v.other.timeZone && v.other.timeZone !== Intl.DateTimeFormat().resolvedOptions().timeZone ? v.other.timeZone.split("/").pop() : null;
   return (
-    <div class="hero">
-      <div class="small" style={{ opacity: 0.8 }}>
-        {v.deal.brandName} wants {plural(v.deal.postCount, v.deal.appName)}
+    <div class="hero adire">
+      <div class="who">
+        {v.role === "creator" ? "You" : v.creator.name} <span>post{v.role === "creator" ? "" : "s"}</span> {plural(v.deal.postCount, v.deal.appName)} <span>for</span> {v.role === "brand" ? "you" : v.deal.brandName}
       </div>
-      <div class="big">{main(v.amounts.total)}</div>
-      {about && <div class="about">{about}{otherCity ? ` · shown in ${otherCity === "Lagos" ? "Naira" : "your money"}` : ""}</div>}
-      <div class="small" style={{ opacity: 0.8, marginTop: 4 }}>{main(v.amounts.perPost)} for each post that checks out{aboutPart(v.amounts.perPost) ? ` (${aboutPart(v.amounts.perPost)})` : ""}</div>
+      <div class="money">
+        <b>{main(v.amounts.total)}</b>
+        {about && <span class="about"> · {about}{otherCity ? `, shown in ${otherCity === "Lagos" ? "Naira" : "your money"}` : ""}</span>}
+      </div>
+      <div class="small" style={{ opacity: 0.75 }}>{main(v.amounts.perPost)} for each post that checks out{aboutPart(v.amounts.perPost) ? ` (${aboutPart(v.amounts.perPost)})` : ""}</div>
       <div class="held">{v.role === "creator" ? "Held for you, safely, until the rules say who gets it" : `Held safely until the rules say who gets it`}</div>
     </div>
   );
@@ -82,6 +84,7 @@ function Brief({ v }: { v: View }) {
 }
 
 function Ring({ to, start, label }: { to: string; start: string | null; label: string }) {
+  // Fills like cloth taking dye: the indigo deepens as the wait runs out.
   const now = useNow(1000);
   const end = new Date(to).getTime();
   const begin = start ? new Date(start).getTime() : end - 11 * 60_000;
@@ -89,10 +92,11 @@ function Ring({ to, start, label }: { to: string; start: string | null; label: s
   const r = 84;
   const c = 2 * Math.PI * r;
   return (
-    <div class="ring">
+    <div class="ring" style={{ ["--dye" as any]: frac.toFixed(3) }}>
+      <div class="vat adire" />
       <svg width="190" height="190">
-        <circle cx="95" cy="95" r={r} stroke="var(--sunk)" stroke-width="8" fill="none" />
-        <circle cx="95" cy="95" r={r} stroke="var(--pass)" stroke-width="8" fill="none" stroke-linecap="round" stroke-dasharray={c} stroke-dashoffset={c * frac} />
+        <circle cx="95" cy="95" r={r} stroke="var(--sunk)" stroke-width="10" fill="none" />
+        <circle cx="95" cy="95" r={r} stroke="var(--indigo)" stroke-width="10" fill="none" stroke-linecap="round" stroke-dasharray={c} stroke-dashoffset={c * (1 - frac)} />
       </svg>
       <div class="in">
         <div class="t">{now >= end ? "0:00" : countdown(to, now)}</div>
@@ -109,8 +113,8 @@ function PaidScreen({ v, onFeed }: { v: View; onFeed: () => Promise<void> }) {
   }, []);
   const abroad = (me?.currency ?? "NGN") !== "NGN";
   return (
-    <div class="paid-screen">
-      <div class="tick">✓</div>
+    <div class="paid-screen adire">
+      <Stamp />
       <div class="big">{main(v.amounts.paid ?? v.amounts.total)}</div>
       {aboutPart(v.amounts.paid ?? "") && <div class="mono small" style={{ opacity: 0.75 }}>{aboutPart(v.amounts.paid!)}</div>}
       <div style={{ opacity: 0.9, marginTop: 6 }}>is in your Zend.</div>
@@ -256,7 +260,7 @@ export function DealPage({ id }: { id: string }) {
     <div class="page">
       <Top back="/">
         <div class="row" style={{ gap: 8 }}>
-          <span class="title">{isBrand ? `Deal with ${cname}` : `Deal ${d.id}`}</span>
+          <span class="title">{isBrand ? cname : d.brandName}</span>
           <Chip state={d.state} />
         </div>
       </Top>
@@ -264,14 +268,15 @@ export function DealPage({ id }: { id: string }) {
 
       {d.state === "approved" && d.paysAt ? (
         <div class="center">
-          <span class="chip pass">Approved · {d.earned} of {d.postCount} checked out</span>
+          <Stamp />
+          <div class="small muted" style={{ marginTop: 10 }}>{d.earned} of {d.postCount} {d.postCount > 1 ? "posts" : "post"} checked out</div>
           <Ring to={d.paysAt} start={d.resultSentAt} label={isBrand ? `until ${cname} is paid` : "until you're paid"} />
           <h2 style={{ marginTop: 0 }}>
             {isBrand ? `${cname} gets ${main(v.amounts.paid ?? v.amounts.total)}` : `You get ${main(v.amounts.paid ?? v.amounts.total)}`}
             <br />
             <i>at {clock(d.paysAt)}</i>
           </h2>
-          {!isBrand && <p class="small muted">After approval there's a 10-minute wait, and {d.brandName} can stop the payout during it.</p>}
+          <p class="small muted">{isBrand ? `Zend holds it for 10 minutes, so you can still say stop.` : `Zend holds it for 10 minutes, so ${d.brandName} can still say stop. That's what keeps brands honest with you too.`}</p>
         </div>
       ) : (
         <>
@@ -304,7 +309,7 @@ export function DealPage({ id }: { id: string }) {
       )}
 
       {/* Posts and their checks */}
-      {v.posts.length > 0 && <div class="section-label">{d.state === "checking" ? "Checking" : "The check"}</div>}
+      {v.posts.length > 0 && <div class="section-label">{v.posts.some((p) => p.status === "checking") ? `Kobolt is reading ${isBrand ? `${cname}'s` : "your"} post${v.posts.length > 1 ? "s" : ""}` : "What Kobolt read"}</div>}
       {v.posts.map((p) => <PostCard p={p} v={v} onDecide={isBrand ? (ok) => decide(p.id, ok) : undefined} />)}
       {!isBrand && takingPosts && v.posts.length > 0 && !showShare && (
         <button class="link" onClick={() => setSharing(true)}>Share a different post</button>
