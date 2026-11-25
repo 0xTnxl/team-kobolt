@@ -210,7 +210,7 @@ export function NewDeal({ interactionId }: { interactionId: string | null }) {
 
   if (!interactionId)
     return (
-      <div class="page">
+      <div class="page narrow">
         <Top back="/" title="New deal" />
         <h1>Start from a chat.</h1>
         <p class="muted">Open your chat with the creator and tap + → Apps → Kobolt → Start a deal, or pick them from Kobolt's home.</p>
@@ -222,7 +222,7 @@ export function NewDeal({ interactionId }: { interactionId: string | null }) {
   const acceptLabel = (s: number) => (s === 90 ? "90 s" : `${s / 3600} h`);
 
   return (
-    <div class="page">
+    <div class="page narrow">
       <Top back="/" title="New deal" />
       <h1>
         A deal with <i>{other}</i>

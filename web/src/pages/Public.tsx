@@ -78,10 +78,10 @@ export function PublicCheck({ id }: { id: string }) {
   useEffect(() => {
     api(`/api/check/${id}`).then(setR, (e) => setErr(e.message));
   }, [id]);
-  if (err) return <div class="page"><Top back={true} /><ErrorBox text={err} /></div>;
+  if (err) return <div class="page narrow"><Top back={true} /><ErrorBox text={err} /></div>;
   if (!r) return <div class="loading">Loading…</div>;
   return (
-    <div class="page">
+    <div class="page narrow">
       <Top back={true} title="The check" />
       <h1>
         {r.creator.name} <i>for {r.deal.brandName}</i>

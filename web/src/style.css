@@ -490,3 +490,50 @@ textarea.input.boxed { min-height: 96px; resize: vertical; line-height: 1.45; }
   100% { transform: scale(1); }
 }
 .deal-row .grow > .small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ─── Desktop ───────────────────────────────────────────────────────────────────────────────
+   Phones keep the single column above. From 900px the app widens, the deal page splits into a
+   sticky summary on the left and the posts on the right, bottom bars sit inline, and sheets
+   open as centred dialogs. */
+@media (min-width: 900px) {
+  #app { max-width: 1120px; }
+  .page { padding: 0 40px 64px; }
+  .page.narrow { max-width: 680px; margin: 0 auto; }
+  .top { margin: 0 -40px 12px; padding-left: 32px; }
+  h1 { font-size: 44px; margin: 16px 0 28px; }
+  h2 { font-size: 28px; }
+
+  /* Home: deals as a grid of cards. */
+  .page:has(> .list) > h1, .page:has(> .list) > .tabs { max-width: 560px; }
+  .list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; background: none; box-shadow: none; overflow: visible; }
+  .list .deal-row { border-radius: 18px; box-shadow: var(--shadow); padding: 16px 18px; transition: background 0.12s, box-shadow 0.2s, transform 0.2s var(--spring); }
+  .list .deal-row:hover { box-shadow: var(--shadow-lift); transform: translateY(-2px); }
+  .list .deal-row + .deal-row::before { display: none; }
+
+  /* Deal: summary left, posts right. */
+  .deal-grid { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 32px; align-items: start; }
+  .deal-side { position: sticky; top: 72px; }
+  .deal-main > .section-label:first-child { margin-top: 4px; }
+  .deal-grid:has(.deal-main:empty) { grid-template-columns: minmax(0, 560px); justify-content: center; }
+  .caption { font-size: 18px; }
+
+  /* Bottom bars sit in the flow instead of floating over the page. */
+  .dock { position: static; background: none !important; box-shadow: none; padding: 24px 0 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .dock > div { max-width: 400px; margin: 0; }
+  .dock .fine { text-align: left; }
+  .deal-grid ~ div[style*="height: 90"] { display: none; }
+
+  /* Paid: centred column on the cloth. */
+  .paid-screen { padding: 96px max(40px, calc(50% - 280px)) 80px; }
+  .paid-screen .dock > div { max-width: none; }
+
+  /* Sheets become dialogs. */
+  .sheet-bg { align-items: center; justify-content: center; }
+  .sheet { max-width: 460px; border-radius: 24px; padding: 24px 28px; animation: dialog 0.35s var(--spring) both; }
+  .sheet .grab { display: none; }
+
+  .btn, .choice, .deal-row, .tabs button, .link, .top .back { cursor: pointer; }
+  .btn:hover:not(:disabled) { filter: brightness(1.08); }
+  .choice:hover:not(.on) { background: var(--sunk); }
+}
+@keyframes dialog { from { opacity: 0; transform: scale(0.96) translateY(8px); } }

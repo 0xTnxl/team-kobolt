@@ -266,6 +266,7 @@ export function DealPage({ id }: { id: string }) {
       </Top>
       <ErrorBox text={err} />
 
+      <div class="deal-grid"><div class="deal-side">
       {d.state === "approved" && d.paysAt ? (
         <div class="center">
           <Stamp />
@@ -308,6 +309,7 @@ export function DealPage({ id }: { id: string }) {
         </div>
       )}
 
+      </div><div class="deal-main">
       {/* Posts and their checks */}
       {v.posts.length > 0 && <div class="section-label">{v.posts.some((p) => p.status === "checking") ? `Kobolt is reading ${isBrand ? `${cname}'s` : "your"} post${v.posts.length > 1 ? "s" : ""}` : "What Kobolt read"}</div>}
       {v.posts.map((p) => <PostCard p={p} v={v} onDecide={isBrand ? (ok) => decide(p.id, ok) : undefined} />)}
@@ -328,6 +330,7 @@ export function DealPage({ id }: { id: string }) {
         </>
       )}
       {!isBrand && (d.state === "offered" || takingPosts) && <Precheck v={v} />}
+      </div></div>
 
       {!isBrand && d.state === "offered" && acceptOpen && (
         <>

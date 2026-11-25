@@ -59,13 +59,32 @@ function prompt(b: Brief, caption: string) {
   return { system, user };
 }
 
-async function callModel(model: string, system: string, user: string): Promise<string> {
-  const r = await fetch(`${env.llmBase}/chat/completions`, {
+// Every (endpoint, key, model) we may call. Keys take turns (round robin); one that fails with a
+// limit, outage or bad-key answer rests for a minute and the next one is tried.
+interface Route { base: string; key: string; model: string; name: string }
+function buildRoutes(): Route[] {
+  const keys = [...new Set((process.env.LLM_API_KEYS || env.llmKey).split(",").map((s) => s.trim()).filter(Boolean))];
+  const models = [env.llmModel, ...env.llmFallbacks];
+  const out: Route[] = [];
+  for (const model of models) keys.forEach((key, i) => out.push({ base: env.llmBase, key, model, name: `${model}#${i + 1}` }));
+  // Optional second provider, e.g. OpenRouter: LLM_BACKUP_BASE_URL, LLM_BACKUP_API_KEY, LLM_BACKUP_MODEL.
+  const bb = process.env.LLM_BACKUP_BASE_URL, bk = process.env.LLM_BACKUP_API_KEY, bm = process.env.LLM_BACKUP_MODEL;
+  if (bb && bk && bm) out.push({ base: bb.replace(/\/$/, ""), key: bk, model: bm, name: `backup:${bm}` });
+  return out;
+}
+const routes = buildRoutes();
+const restingUntil = new Map<string, number>();
+let turn = 0;
+
+export const aiConfigured = () => routes.length > 0;
+
+async function callModel(route: Route, system: string, user: string): Promise<string> {
+  const r = await fetch(`${route.base}/chat/completions`, {
     method: "POST",
     signal: AbortSignal.timeout(20_000),
-    headers: { "content-type": "application/json", authorization: `Bearer ${env.llmKey}` },
+    headers: { "content-type": "application/json", authorization: `Bearer ${route.key}` },
     body: JSON.stringify({
-      model,
+      model: route.model,
       temperature: 0.7,
       response_format: { type: "json_object" },
       messages: [
@@ -76,20 +95,31 @@ async function callModel(model: string, system: string, user: string): Promise<s
   });
   if (!r.ok) {
     const err: any = new Error(`model ${r.status}`);
-    err.retry = r.status === 429 || r.status >= 500;
+    // Limits, outages, bad or revoked keys, retired models: try the next route.
+    err.retry = r.status === 429 || r.status >= 500 || r.status === 401 || r.status === 403 || r.status === 404;
     throw err;
   }
   const j: any = await r.json();
-  return String(j.choices?.[0]?.message?.content ?? "");
+  const content = String(j.choices?.[0]?.message?.content ?? "");
+  if (!content) throw Object.assign(new Error("empty answer"), { retry: true });
+  return content;
 }
 
+/** One sample: start at the next route in turn, skip resting ones, try up to 4 routes. */
 async function sampleOnce(system: string, user: string): Promise<string | null> {
-  const models = [env.llmModel, ...env.llmFallbacks];
-  for (let i = 0; i < Math.min(models.length, 2); i++) {
+  if (!routes.length) return null;
+  const start = turn++ % routes.length;
+  let tried = 0;
+  for (let k = 0; k < routes.length && tried < 4; k++) {
+    const route = routes[(start + k) % routes.length];
+    if ((restingUntil.get(route.name) ?? 0) > Date.now() && k < routes.length - 1) continue;
+    tried++;
     try {
-      return await callModel(models[i], system, user);
+      return await callModel(route, system, user);
     } catch (e: any) {
       if (!(e.retry || e.name === "TimeoutError" || e.name === "AbortError")) return null;
+      restingUntil.set(route.name, Date.now() + 60_000);
+      console.error(JSON.stringify({ event: "ai_route_failed", route: route.name, error: String(e.message ?? e) }));
     }
   }
   return null;

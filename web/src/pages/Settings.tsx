@@ -25,7 +25,7 @@ export function Settings() {
   }
 
   return (
-    <div class="page">
+    <div class="page narrow">
       <Top back="/" title="Settings" />
       <ErrorBox text={err} />
       <div class="field">
