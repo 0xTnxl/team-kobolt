@@ -1,3 +1,4 @@
+import { execFile, execFileSync } from "node:child_process";
 // Reads a public TikTok post through TikTok's oEmbed. Only *.tiktok.com is ever fetched.
 
 export interface ParsedUrl {
@@ -80,27 +81,64 @@ const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 
 /** The public post page embeds the post as JSON: caption, author, time and a status code. */
 let cookies = "";
-const DATA = /<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/;
+const hasCurl = (() => {
+  try {
+    execFileSync("curl", ["--version"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+})();
 
-async function readFromPage(p: ParsedUrl): Promise<TikTokRead | null> {
-  let m: RegExpMatchArray | null = null;
-  // TikTok answers a cookieless first visit with a short challenge page and sets cookies; the second visit gets the post.
-  // TikTok sometimes answers with a short "please wait" page instead; a few spaced retries usually get the post.
-  for (let i = 0; i < 5 && !m; i++) {
-    if (i) await new Promise((r) => setTimeout(r, 400 * i));
-    const r = await fetch(p.fetchUrl!, {
+/** The URL is always our own https://www.tiktok.com/@handle/video/<id>; execFile never uses a shell. */
+function viaCurl(url: string): Promise<string | 404 | null> {
+  return new Promise((resolve) => {
+    execFile(
+      "curl",
+      ["-s", "--max-time", "8", "-A", BROWSER_UA, "-H", "accept-language: en", "-w", "\n%{http_code}", url],
+      { maxBuffer: 8 * 1024 * 1024 },
+      (err, out) => {
+        if (err) return resolve(null);
+        const cut = out.lastIndexOf("\n");
+        const code = Number(out.slice(cut + 1));
+        resolve(code === 404 ? 404 : code === 200 ? out.slice(0, cut) : null);
+      },
+    );
+  });
+}
+
+async function viaFetch(url: string): Promise<string | 404 | null> {
+  try {
+    const r = await fetch(url, {
       signal: AbortSignal.timeout(8000),
       headers: { "user-agent": BROWSER_UA, "accept-language": "en", ...(cookies ? { cookie: cookies } : {}) },
     });
-    if (r.status === 404) return { caption: "", author: p.handle, postedAt: postedAtFromId(p.videoId), live: false };
+    if (r.status === 404) return 404;
     const set = r.headers.getSetCookie?.() ?? [];
     if (set.length) {
       const jar = new Map(cookies.split("; ").filter(Boolean).map((c) => [c.split("=")[0], c] as [string, string]));
       for (const c of set) jar.set(c.split("=")[0], c.split(";")[0]);
       cookies = [...jar.values()].join("; ");
     }
-    if (!r.ok) return null;
-    m = (await r.text()).match(DATA);
+    return r.ok ? await r.text() : null;
+  } catch {
+    return null;
+  }
+}
+
+const DATA = /<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/;
+
+async function readFromPage(p: ParsedUrl): Promise<TikTokRead | null> {
+  let m: RegExpMatchArray | null = null;
+  // TikTok answers a cookieless first visit with a short challenge page and sets cookies; the second visit gets the post.
+  // TikTok sometimes answers with a short "please wait" page instead; a few spaced retries usually get the post.
+  // TikTok often answers with a short "please wait" page, and blocks Node's HTTP client outright on
+  // some hosts. curl gets through far more often, so use it when present, with spaced retries.
+  for (let i = 0; i < 10 && !m; i++) {
+    if (i) await new Promise((r) => setTimeout(r, 250 + 150 * i));
+    const html = await (hasCurl ? viaCurl(p.fetchUrl!) : viaFetch(p.fetchUrl!));
+    if (html === 404) return { caption: "", author: p.handle, postedAt: postedAtFromId(p.videoId), live: false };
+    if (html) m = html.match(DATA);
   }
   if (!m) return null;
   const detail = JSON.parse(m[1])?.__DEFAULT_SCOPE__?.["webapp.video-detail"];
