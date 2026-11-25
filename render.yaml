@@ -1,0 +1,85 @@
+# Render Blueprint. New → Blueprint → pick this repo. Values marked `sync: false` are asked for once.
+# Same image as the Nobus deploy (deploy/Dockerfile); Render does HTTPS, so Caddy isn't used here.
+services:
+  - type: web
+    name: kobolt
+    runtime: docker
+    dockerfilePath: ./deploy/Dockerfile
+    dockerContext: .
+    plan: starter # not free: free instances sleep, which stops the scheduler and delays Zend's webhooks
+    region: frankfurt
+    healthCheckPath: /livez
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase: { name: kobolt-db, property: connectionString }
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: OPS_TOKEN
+        generateValue: true
+      - key: PUBLIC_ORIGIN # optional; defaults to the onrender.com URL
+        sync: false
+      - key: ZEND_API
+        value: https://api.usezend.app
+      - key: ZEND_APP_SLUG
+        value: kobolt
+      - key: ZEND_APP_KEY
+        sync: false
+      - key: ZEND_WEBHOOK_SECRET
+        sync: false
+      - key: ZEND_RESOLVER_SEED
+        sync: false
+      - key: LLM_BASE_URL
+        value: https://generativelanguage.googleapis.com/v1beta/openai
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: gemini-flash-lite-latest
+      - key: LLM_FALLBACK_MODELS
+        value: gemini-3.5-flash-lite,gemini-flash-latest
+      - key: CHECK_SAMPLES
+        value: "3"
+      - key: FX_URL
+        value: https://open.er-api.com/v6/latest/USD
+      - key: DEMO_MODE
+        value: "1"
+
+  # @kobolt. Idles until ZEND_BOT_API_KEY is set, so it's safe to create before the bot exists.
+  - type: worker
+    name: kobolt-bot
+    runtime: docker
+    dockerfilePath: ./deploy/Dockerfile
+    dockerContext: .
+    dockerCommand: npx tsx bot/main.ts
+    plan: starter
+    region: frankfurt
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase: { name: kobolt-db, property: connectionString }
+      - key: ZEND_API
+        value: https://api.usezend.app
+      - key: ZEND_APP_SLUG
+        value: kobolt
+      - key: ZEND_BOT_API_KEY
+        sync: false
+      - key: ZEND_BOT_PRIVATE_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        value: https://generativelanguage.googleapis.com/v1beta/openai
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: gemini-flash-lite-latest
+      - key: LLM_FALLBACK_MODELS
+        value: gemini-3.5-flash-lite,gemini-flash-latest
+      - key: CHECK_SAMPLES
+        value: "3"
+      - key: FX_URL
+        value: https://open.er-api.com/v6/latest/USD
+
+databases:
+  - name: kobolt-db
+    databaseName: kobolt
+    user: kobolt
+    plan: basic-256mb
+    postgresMajorVersion: "16"
+    region: frankfurt

@@ -1,0 +1,33 @@
+{
+  "app": "kobolt",
+  "name": "Kobolt",
+  "version": "1.0.0",
+  "description": "Pay creators for posts that went up. The money is held safely until the posts check out.",
+  "category": "tools",
+  "origins": ["__ORIGIN__"],
+  "entry": "/",
+  "visibility": "private",
+  "permissions": ["post_card", "prize", "connect"],
+  "chatActions": [{ "id": "deal", "label": "Start a deal", "sheet": "/new", "interaction": "deal" }],
+  "cardTypes": ["status", "result"],
+  "interactionTypes": {
+    "deal": {
+      "states": ["new", "offered", "accepted", "checking", "needs_brand", "approved", "paid", "part_paid", "returned", "stopped", "closed", "expired"],
+      "initial": "new",
+      "transitions": {
+        "new": [{ "to": "offered", "serverOnly": true }, { "to": "closed", "serverOnly": true }, { "to": "expired", "serverOnly": true }],
+        "offered": [{ "to": "accepted", "serverOnly": true }, { "to": "closed", "serverOnly": true }, { "to": "expired", "serverOnly": true }],
+        "accepted": [{ "to": "checking", "serverOnly": true }, { "to": "approved", "serverOnly": true }, { "to": "returned", "serverOnly": true }, { "to": "expired", "serverOnly": true }],
+        "checking": [{ "to": "needs_brand", "serverOnly": true }, { "to": "approved", "serverOnly": true }, { "to": "returned", "serverOnly": true }, { "to": "expired", "serverOnly": true }],
+        "needs_brand": [{ "to": "checking", "serverOnly": true }, { "to": "approved", "serverOnly": true }, { "to": "returned", "serverOnly": true }, { "to": "expired", "serverOnly": true }],
+        "approved": [{ "to": "paid", "serverOnly": true }, { "to": "part_paid", "serverOnly": true }, { "to": "returned", "serverOnly": true }, { "to": "stopped", "serverOnly": true }, { "to": "expired", "serverOnly": true }]
+      },
+      "terminal": ["paid", "part_paid", "returned", "stopped", "closed", "expired"]
+    }
+  },
+  "custody": "contract",
+  "results": "app",
+  "resolverKey": "__RESOLVER_KEY__",
+  "webhook": "__ORIGIN__/zend/webhook",
+  "limits": { "cardsPerUserPerDay": 20 }
+}
