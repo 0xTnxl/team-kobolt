@@ -411,7 +411,7 @@ textarea.input.boxed { min-height: 96px; resize: vertical; line-height: 1.45; }
   font: 17px/1.6 var(--sans); letter-spacing: -0.012em; color: var(--ink);
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
-.caption-wrap:has(.stamp) .caption { padding-bottom: 52px; }
+.caption-wrap:has(.stamp) .caption { padding-bottom: 66px; }
 .caption mark {
   color: inherit; background-color: transparent; padding: 1px 2px; margin: 0 -2px; border-radius: 4px;
   background-repeat: no-repeat; background-size: 100% 100%; animation: ink 0.55s var(--spring) both;
