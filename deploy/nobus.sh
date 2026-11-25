@@ -9,10 +9,20 @@ DOMAIN="${2:-${IP//./-}.sslip.io}"
 ORIGIN="https://$DOMAIN"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SECRETS="$HOME/.zend/kobolt/secrets.env"
+BOT="${BOT-kobolt}"   # @kobolt, from `zend bot create`; BOT= to deploy without it
+BOT_FILE="$HOME/.zend/bots/$BOT.json"
+BOT_API_KEY=""; BOT_PRIVATE_KEY=""
+if [ -n "$BOT" ] && [ -f "$BOT_FILE" ]; then
+  BOT_API_KEY="$(node -p "require('$BOT_FILE').apiKey")"
+  BOT_PRIVATE_KEY="$(node -p "require('$BOT_FILE').privateKey")"
+fi
+KEY="${SSH_KEY:-$HOME/.ssh/kobolt_nobus}"
+ssh() { command ssh -i "$KEY" -o StrictHostKeyChecking=accept-new "$@"; }
+scp() { command scp -i "$KEY" -o StrictHostKeyChecking=accept-new "$@"; }
 cd "$ROOT"
 
 # 1. .env (kept on the VM across redeploys; never committed)
-if ! ssh -o StrictHostKeyChecking=accept-new "$HOST" test -f kobolt/.env; then
+if ! ssh "$HOST" test -f kobolt/.env; then
   umask 077
   set -a; . "$SECRETS"; set +a
   LLM="${LLM_API_KEY:-${GEMINI_API_KEY:?set LLM_API_KEY or GEMINI_API_KEY}}"
@@ -28,8 +38,8 @@ ZEND_APP_SLUG=kobolt
 ZEND_APP_KEY=$ZEND_APP_KEY
 ZEND_WEBHOOK_SECRET=$ZEND_WEBHOOK_SECRET
 ZEND_RESOLVER_SEED=$ZEND_RESOLVER_SEED
-ZEND_BOT_API_KEY=
-ZEND_BOT_PRIVATE_KEY=
+ZEND_BOT_API_KEY=$BOT_API_KEY
+ZEND_BOT_PRIVATE_KEY=$BOT_PRIVATE_KEY
 LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
 LLM_API_KEY=$LLM
 LLM_MODEL=gemini-flash-lite-latest
