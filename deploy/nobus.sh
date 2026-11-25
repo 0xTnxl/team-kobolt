@@ -16,7 +16,7 @@ if [ -n "$BOT" ] && [ -f "$BOT_FILE" ]; then
   BOT_API_KEY="$(node -p "require('$BOT_FILE').apiKey")"
   BOT_PRIVATE_KEY="$(node -p "require('$BOT_FILE').privateKey")"
 fi
-KEY="${SSH_KEY:-$HOME/.ssh/kobolt_nobus}"
+KEY="${SSH_KEY:-$HOME/.ssh/kobolt_nobus_rsa}"
 ssh() { command ssh -i "$KEY" -o StrictHostKeyChecking=accept-new "$@"; }
 scp() { command scp -i "$KEY" -o StrictHostKeyChecking=accept-new "$@"; }
 cd "$ROOT"
