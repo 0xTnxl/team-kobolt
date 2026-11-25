@@ -63,13 +63,16 @@ async function runCheck(dealId: string, postId: string, parsed: ParsedUrl, typed
   if (parsed.platform === "tiktok") {
     const t = await readTikTok(parsed);
     await sql`UPDATE posts SET caption = ${t.caption}, author = ${t.author}, posted_at = ${t.postedAt}, live = ${t.live} WHERE id = ${postId}`;
-    if (t.live === null) {
-      // TikTok unreachable: never fail a post for that. The brand decides.
-      const checks = [{ id: "STILL_UP", layer: "rule", status: "unknown", label: "Still up", quote: null, why: "Kobolt couldn't reach TikTok.", fix: null }];
+    if (t.live === null && !typedCaption.trim()) {
+      // TikTok unreachable (or a photo post TikTok won't show us): never fail a post for that. The brand decides.
+      const checks = [{ id: "STILL_UP", layer: "rule", status: "unknown", label: "Still up", quote: null, why: "Kobolt couldn't read this post from TikTok.", fix: null }];
       await finish(d, postId, "needs_brand", checks);
       return;
     }
-    facts = { platform: "tiktok", caption: t.caption, author: t.author, postedAt: t.postedAt, live: t.live, reused, draft: false };
+    // Unreadable but the creator pasted the caption: run every check on it; the brand confirms it matches.
+    const caption = t.live === null ? typedCaption : t.caption;
+    if (t.live === null) await sql`UPDATE posts SET caption = ${caption} WHERE id = ${postId}`;
+    facts = { platform: "tiktok", caption, author: t.author, postedAt: t.postedAt, live: t.live, reused, draft: false };
   } else {
     facts = { platform: parsed.platform, caption: typedCaption, author: null, postedAt: null, live: null, reused, draft: false };
   }

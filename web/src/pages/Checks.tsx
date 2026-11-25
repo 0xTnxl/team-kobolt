@@ -86,7 +86,7 @@ export function ShareForm({ v, onDone }: { v: View; onDone: (nv: View) => void }
     setErr(null);
     setBusy(true);
     try {
-      const nv = await api<View>(`/api/deals/${v.deal.id}/posts`, { body: { urls, ...(typed ? { captions } : {}) } });
+      const nv = await api<View>(`/api/deals/${v.deal.id}/posts`, { body: { urls, captions } });
       onDone(nv);
     } catch (e) {
       setErr(zendMessage(e));
@@ -117,12 +117,12 @@ export function ShareForm({ v, onDone }: { v: View; onDone: (nv: View) => void }
             maxLength={300}
             onInput={(e) => setUrls(urls.map((u, j) => (j === i ? (e.target as HTMLInputElement).value : u)))}
           />
-          {typed && (
+          {(typed || p?.status === "needs_brand" || p?.checks?.some((c) => c.id === "STILL_UP" && c.status !== "pass")) && (
             <textarea
               class="input boxed"
               style={{ marginTop: 6 }}
               value={captions[i]}
-              placeholder="The caption, exactly as posted"
+              placeholder={typed ? "The caption, exactly as posted" : "Kobolt couldn't read this post. Paste its caption, exactly as posted"}
               maxLength={2200}
               onInput={(e) => setCaptions(captions.map((c, j) => (j === i ? (e.target as HTMLTextAreaElement).value : c)))}
             />

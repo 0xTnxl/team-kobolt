@@ -187,7 +187,7 @@ export async function readTikTok(p: ParsedUrl): Promise<TikTokRead> {
         res = { caption: String(j.title ?? ""), author, postedAt: postedAtFromId(p.videoId), live: true };
         break;
       }
-      if (r.status === 400 || r.status === 404) {
+      if (r.status === 404) { // 400 is "something went wrong" (e.g. photo posts), not "deleted"
         res = { ...res, live: false };
         break;
       }

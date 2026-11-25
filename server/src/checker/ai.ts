@@ -66,7 +66,13 @@ function buildRoutes(): Route[] {
   const keys = [...new Set((process.env.LLM_API_KEYS || env.llmKey).split(",").map((s) => s.trim()).filter(Boolean))];
   const models = [env.llmModel, ...env.llmFallbacks];
   const out: Route[] = [];
-  for (const model of models) keys.forEach((key, i) => out.push({ base: env.llmBase, key, model, name: `${model}#${i + 1}` }));
+  // Diagonal order: each next route changes both the key (rate limits are per key) and the model
+  // (overload 503s are per model), and every (model, key) pair appears once.
+  const M = models.length, K = keys.length;
+  for (let d = 0; d < M * K; d++) {
+    const model = models[d % M], ki = (d + Math.floor(d / M)) % K;
+    out.push({ base: env.llmBase, key: keys[ki], model, name: `${model}#${ki + 1}` });
+  }
   // Optional second provider, e.g. OpenRouter: LLM_BACKUP_BASE_URL, LLM_BACKUP_API_KEY, LLM_BACKUP_MODEL.
   const bb = process.env.LLM_BACKUP_BASE_URL, bk = process.env.LLM_BACKUP_API_KEY, bm = process.env.LLM_BACKUP_MODEL;
   if (bb && bk && bm) out.push({ base: bb.replace(/\/$/, ""), key: bk, model: bm, name: `backup:${bm}` });
@@ -96,7 +102,7 @@ async function callModel(route: Route, system: string, user: string): Promise<st
   if (!r.ok) {
     const err: any = new Error(`model ${r.status}`);
     // Limits, outages, bad or revoked keys, retired models: try the next route.
-    err.retry = r.status === 429 || r.status >= 500 || r.status === 401 || r.status === 403 || r.status === 404;
+    err.retry = true; // any refusal (limit, outage, bad key, retired model): next route
     throw err;
   }
   const j: any = await r.json();
@@ -105,12 +111,12 @@ async function callModel(route: Route, system: string, user: string): Promise<st
   return content;
 }
 
-/** One sample: start at the next route in turn, skip resting ones, try up to 4 routes. */
+/** One sample: start at the next route in turn, skip resting ones, try up to 6 routes. */
 async function sampleOnce(system: string, user: string): Promise<string | null> {
   if (!routes.length) return null;
   const start = turn++ % routes.length;
   let tried = 0;
-  for (let k = 0; k < routes.length && tried < 4; k++) {
+  for (let k = 0; k < routes.length && tried < 6; k++) {
     const route = routes[(start + k) % routes.length];
     if ((restingUntil.get(route.name) ?? 0) > Date.now() && k < routes.length - 1) continue;
     tried++;
@@ -153,7 +159,49 @@ function validate(raw: string | null, caption: string): Sample | null {
   return { checks: j.checks, injection: inj, injectionQuote: inj ? j.injectionQuote ?? null : null };
 }
 
+/** Used when AI_CHECKS=off or no model answers: fixed wording rules for the same four checks. */
+function wordingChecks(b: Brief, caption: string): AiOutcome {
+  const labels = aiLabels(b);
+  const text = caption.normalize("NFKC").replace(/[\u200B-\u200D\u2060\uFEFF]/g, "");
+  const find = (re: RegExp) => text.match(re)?.[0] ?? null;
+  const tag = (b.disclosure || "#ad").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const inj = find(/(ignore|disregard|forget)\s+(all\s+|the\s+|any\s+|previous\s+|these\s+)*(rules|instructions|checks?)[^.\n]{0,60}|approve\s+this[^.\n]{0,40}|you\s+are\s+now\s+[^.\n]{0,40}/i);
+  const negated = find(new RegExp(`(not|n't|no|never)\\s+(an?\\s+|a\\s+paid\\s+)?(${tag}|ad|advert|sponsored|paid)\\b[^.\\n]{0,30}|not\\s+sponsored|i\\s+paid\\s+for\\s+(this|it)\\s+myself|unsponsored`, "i"));
+  const label = find(new RegExp(tag, "i"));
+  const hint = find(/(that|the)\s+other\s+(fabric\s+)?(shop|store|brand|seller|vendor|place)[^.\n]{0,30}|unlike\s+(the|that|some)\s+[^.\n]{0,30}/i);
+  const norm2 = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
+  const capN = norm2(text);
+  const claim = b.avoidClaims.find((c) => {
+    const words = norm2(c).split(" ").filter((w) => w.length >= 4);
+    return capN.includes(norm2(c)) || (words.length > 0 && words.every((w) => capN.includes(w)));
+  });
+  const claimQuote = claim ? find(new RegExp(norm2(claim).split(" ").filter((w) => w.length >= 4)[0] ?? claim, "i")) : null;
+  const mk = (id: AiId, status: AiStatus, quote: string | null, why: string): CheckResult => ({
+    id, layer: "ai", status, label: labels[id], quote, why, fix: status === "fail" ? FIX[id] : null,
+  });
+  const checks = [
+    negated ? mk("AD_IS_REAL", "fail", negated, "The ad label is denied in the caption.")
+      : label ? mk("AD_IS_REAL", "pass", label, "The ad label is stated plainly.")
+      : mk("AD_IS_REAL", "unclear", null, "No ad label found."),
+    mk("ABOUT_PRODUCT", "pass", null, "It carries the brand's hashtag."),
+    hint ? mk("NO_HINTS", "fail", hint, "This points at another shop.") : mk("NO_HINTS", "pass", null, "No hint at another shop."),
+    claim ? mk("NO_CLAIMS", "fail", claimQuote, `This makes the claim "${claim}".`) : mk("NO_CLAIMS", "pass", null, "None of the ruled-out claims."),
+  ];
+  if (inj) return { checks, decision: "unsure", injectionQuote: inj, reason: "The caption tried to tell the checker what to do." };
+  if (checks.some((c) => c.status === "fail")) return { checks, decision: "fail", injectionQuote: null, reason: null };
+  if (checks.some((c) => c.status === "unclear")) return { checks, decision: "unsure", injectionQuote: null, reason: "Kobolt couldn't be sure." };
+  return { checks, decision: "pass", injectionQuote: null, reason: null };
+}
+
 export async function runAi(b: Brief, caption: string): Promise<AiOutcome> {
+  if (process.env.AI_CHECKS === "off") return wordingChecks(b, caption);
+  const out = await runModels(b, caption);
+  // No model answered (outage, limits): use the wording rules rather than stall the deal.
+  if (out.reason === "NO_MODEL") return wordingChecks(b, caption);
+  return out;
+}
+
+async function runModels(b: Brief, caption: string): Promise<AiOutcome> {
   const labels = aiLabels(b);
   const unsure = (reason: string): AiOutcome => ({
     checks: AI_IDS.map((id) => ({ id, layer: "ai", status: "unclear", label: labels[id], quote: null, why: reason, fix: null })),
@@ -167,6 +215,7 @@ export async function runAi(b: Brief, caption: string): Promise<AiOutcome> {
   const raws = await Promise.all(Array.from({ length: n }, () => sampleOnce(system, user)));
   const valid = raws.map((x) => validate(x, caption)).filter((x): x is Sample => !!x);
   const need = Math.floor(n / 2) + 1;
+  if (valid.length === 0) return { ...unsure("Kobolt couldn't be sure."), reason: "NO_MODEL" };
   if (valid.length < need) return unsure("Kobolt couldn't be sure.");
 
   const inj = valid.find((s) => s.injection);

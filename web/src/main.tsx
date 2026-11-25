@@ -8,6 +8,7 @@ import { NewDeal } from "./pages/NewDeal";
 import { DealPage } from "./pages/Deal";
 import { CreatorPage, PublicCheck } from "./pages/Public";
 import { Settings } from "./pages/Settings";
+import { Landing } from "./pages/Landing";
 
 const PUBLIC = /^\/(c|check)\//;
 
@@ -60,6 +61,7 @@ function App() {
     );
   }, []);
   if (ready === "wait") return <div class="loading" aria-label="Loading" />;
+  if (ready === "outside" && location.pathname === "/") return <Landing />;
   if (ready === "outside")
     return (
       <div class="page center" style={{ paddingTop: 120 }}>
