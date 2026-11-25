@@ -1,0 +1,48 @@
+# Every push to main redeploys Kobolt on the Nobus VM. The VM keeps its own .env (secrets never
+# leave it); this only ships code and rebuilds. Secrets: NOBUS_HOST (user@ip), NOBUS_SSH_KEY.
+name: Deploy to Nobus
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-nobus
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.NOBUS_SSH_KEY }}" > ~/.ssh/key
+          chmod 600 ~/.ssh/key
+          ssh-keyscan -H "${NOBUS_HOST#*@}" >> ~/.ssh/known_hosts 2>/dev/null
+        env:
+          NOBUS_HOST: ${{ secrets.NOBUS_HOST }}
+
+      - name: Ship code
+        run: |
+          tar --exclude=.git --exclude=node_modules --exclude=web/dist --exclude=.env --exclude=backups \
+              --exclude='*.pem' --exclude='*.key' -czf - . \
+            | ssh -i ~/.ssh/key "${{ secrets.NOBUS_HOST }}" "cd kobolt && tar xzf -"
+
+      - name: Rebuild and restart
+        run: |
+          ssh -i ~/.ssh/key "${{ secrets.NOBUS_HOST }}" '
+            set -e
+            cd kobolt
+            sudo docker compose -f deploy/compose.yml --env-file .env --profile bot up -d --build
+            sudo docker image prune -f >/dev/null
+          '
+
+      - name: Health
+        run: |
+          ORIGIN=$(ssh -i ~/.ssh/key "${{ secrets.NOBUS_HOST }}" "grep ^PUBLIC_ORIGIN kobolt/.env | cut -d= -f2")
+          for i in $(seq 1 30); do curl -fsS "$ORIGIN/healthz" && exit 0; sleep 4; done
+          echo "Kobolt did not come back healthy"; exit 1
